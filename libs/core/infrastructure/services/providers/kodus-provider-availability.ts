@@ -19,8 +19,23 @@ export function isKodusProviderAvailable(): boolean {
     return environment.API_CLOUD_MODE === true;
 }
 
-/** Whether `providerId` is connectable on THIS deployment. Only the `kodus` id
- *  is gated; every other registered provider is always connectable. */
+/**
+ * The ChatGPT plan ("Sign in with ChatGPT") is for self-hosted Kodus only: it
+ * spends one person's plan, which a multi-tenant cloud must not pool. Unlike
+ * the `kodus` gate this is a policy about WHERE the plan may be used, so the
+ * token source also refuses to issue tokens when it is false.
+ */
+export function isChatGptProviderAvailable(): boolean {
+    return environment.API_CLOUD_MODE !== true;
+}
+
+/** Whether `providerId` is connectable on THIS deployment. `kodus` is
+ *  cloud-only and `chatgpt` self-hosted-only; every other registered provider
+ *  is always connectable. */
 export function isProviderAvailableHere(providerId: string): boolean {
-    return providerId !== BYOKProvider.KODUS || isKodusProviderAvailable();
+    if (providerId === BYOKProvider.KODUS) return isKodusProviderAvailable();
+    if (providerId === BYOKProvider.CHATGPT) {
+        return isChatGptProviderAvailable();
+    }
+    return true;
 }

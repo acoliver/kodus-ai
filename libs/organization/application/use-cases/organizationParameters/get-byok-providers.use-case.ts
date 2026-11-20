@@ -10,6 +10,7 @@ import {
     KodusProviderGate,
 } from '@libs/core/infrastructure/services/providers/kodus-provider-gate.service';
 import { isPlatformFundedProvider } from '@libs/llm/platform-funded-provider';
+import { BYOKProvider } from '@libs/llm/model-providers';
 import { Injectable, Optional, Inject } from '@nestjs/common';
 
 /**
@@ -64,6 +65,9 @@ export class GetByokProvidersUseCase implements IUseCase {
             providers: REGISTRY.all()
                 .filter((m) => isProviderAvailableHere(m.id))
                 .filter((m) => !isPlatformFundedProvider(m.id) || kodusEnabled)
+                // Connected with `kodus chatgpt login`, never from the web form:
+                // the sign-in runs a loopback OAuth flow on the admin's machine.
+                .filter((m) => m.id !== BYOKProvider.CHATGPT)
                 .map((m) => ({
                 id: m.id,
                 label: m.label,

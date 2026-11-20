@@ -24,6 +24,7 @@ import { OrganizationParametersModel } from '../../../../organization/infrastruc
 import { ParametersModel } from '../../../../organization/infrastructure/adapters/repositories/schemas/parameters.model';
 import { TeamCliKeyModel } from '../../../../organization/infrastructure/adapters/repositories/schemas/team-cli-key.model';
 import { CliDeviceModel } from '../../../../organization/infrastructure/adapters/repositories/schemas/cli-device.model';
+import { ChatGptSessionModel } from '../../../../organization/infrastructure/adapters/repositories/schemas/chatgpt-session.model';
 import { TeamModel } from '../../../../organization/infrastructure/adapters/repositories/schemas/team.model';
 import { TeamMemberModel } from '../../../../organization/infrastructure/adapters/repositories/schemas/teamMember.model';
 import { PullRequestsModel } from '../../../../platformData/infrastructure/adapters/repositories/schemas/pullRequests.model';
@@ -73,6 +74,7 @@ export const ENTITIES = [
     CodeReviewExecutionModel,
     InteractionModel,
     CliDeviceModel,
+    ChatGptSessionModel,
     SessionEventModel,
     RepositoryModel,
     AstNodeModel,

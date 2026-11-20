@@ -6,4 +6,6 @@ export enum GlobalParametersKey {
     TELEMETRY_STATE = 'telemetry_state',
     SANDBOX_CONCURRENCY = 'sandbox_concurrency',
     SANDBOX_EGRESS = 'sandbox_egress',
+    /** `{ id: "urn:uuid:<v4>" }`: this deployment's ChatGPT agent host id. */
+    CHATGPT_AGENT_HOST = 'chatgpt_agent_host',
 }

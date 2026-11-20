@@ -9,6 +9,7 @@ jest.mock('@libs/ee/configs/environment', () => ({
 import { environment } from '@libs/ee/configs/environment';
 import { GetByokProvidersUseCase } from '@libs/organization/application/use-cases/organizationParameters/get-byok-providers.use-case';
 import {
+    isChatGptProviderAvailable,
     isKodusProviderAvailable,
     isProviderAvailableHere,
 } from './kodus-provider-availability';
@@ -31,6 +32,25 @@ describe('kodus provider availability', () => {
         expect(isKodusProviderAvailable()).toBe(false);
         expect(isProviderAvailableHere('kodus')).toBe(false);
         expect(isProviderAvailableHere('openai')).toBe(true);
+    });
+
+    it('chatgpt is self-hosted only (the opposite of kodus)', () => {
+        setCloud(true);
+        expect(isChatGptProviderAvailable()).toBe(false);
+        expect(isProviderAvailableHere('chatgpt')).toBe(false);
+
+        setCloud(false);
+        expect(isChatGptProviderAvailable()).toBe(true);
+        expect(isProviderAvailableHere('chatgpt')).toBe(true);
+    });
+
+    it('GetByokProvidersUseCase never offers chatgpt in the web picker (CLI-connected)', async () => {
+        setCloud(false);
+        const ids = (
+            await new GetByokProvidersUseCase().execute('org-1')
+        ).providers.map((p) => p.id);
+        expect(ids).not.toContain('chatgpt');
+        expect(ids).toContain('openai');
     });
 
     it('ProviderService projects kodus as keyless + auto-listable on cloud', () => {

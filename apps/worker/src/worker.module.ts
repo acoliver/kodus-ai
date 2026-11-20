@@ -19,6 +19,7 @@ import { WorkflowJobRetentionService } from '@libs/core/workflow/infrastructure/
 import { isSecurityScanSliceProcess } from '@libs/core/workflow/infrastructure/security-scan-runtime';
 import { WorkflowModule } from '@libs/core/workflow/modules/workflow.module';
 import { OrganizationModule } from '@libs/organization/modules/organization.module';
+import { ChatGptSessionModule } from '@libs/organization/modules/chatgpt-session.module';
 import { PlatformModule } from '@libs/platform/modules/platform.module';
 import { SharedMongoModule } from '@libs/shared/database/shared-mongo.module';
 import { SharedPostgresModule } from '@libs/shared/database/shared-postgres.module';
@@ -93,6 +94,8 @@ export class WorkerModule {
             LicenseModule,
             SandboxModule, // provides SANDBOX_LEASE_MANAGER_TOKEN for OutboxRelayService
             NotificationModule,
+            // Wires the ChatGPT plan token source for LLM calls on this worker.
+            ChatGptSessionModule,
         ];
 
         if (role === 'security-scan') {
