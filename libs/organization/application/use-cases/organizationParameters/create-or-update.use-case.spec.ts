@@ -24,6 +24,8 @@ function buildUseCase(
     existing?: unknown,
     options: {
         kodusGate?: { isEnabledFor: (org?: string) => Promise<boolean> };
+        /** ChatGPT credential ids that have a session row in org-1. */
+        chatGptSessions?: string[];
     } = {},
 ) {
     const persisted: { value?: any } = {};
@@ -51,12 +53,21 @@ function buildUseCase(
     const kodusGate = options.kodusGate ?? {
         isEnabledFor: jest.fn(async () => true),
     };
+    const sessionIds = new Set(options.chatGptSessions ?? []);
+    const chatGptSessions = {
+        existsForOrganization: jest.fn(
+            async (org: string, id: string) =>
+                org === 'org-1' && sessionIds.has(id),
+        ),
+        reconcile: jest.fn(async () => undefined),
+    };
     const useCase = new CreateOrUpdateOrganizationParametersUseCase(
         organizationParametersService as any,
         request,
         eventEmitter,
         telemetry,
         kodusGate as any,
+        chatGptSessions as any,
     );
 
     return {
@@ -64,6 +75,7 @@ function buildUseCase(
         persisted,
         createOrUpdateConfig,
         organizationParametersService,
+        chatGptSessions,
     };
 }
 
@@ -1158,5 +1170,129 @@ describe('platform-funded (`kodus`) credential — keyless by design, cloud-only
                 v2({ credentials: [{ id: 'cred-openai', provider: 'openai' }] }),
             ),
         ).rejects.toThrow(BadRequestException);
+    });
+});
+
+describe('CreateOrUpdateOrganizationParametersUseCase — chatgpt credentials', () => {
+    const chatgpt = (over: Partial<BYOKConfig> = {}): BYOKConfig => ({
+        version: 2,
+        credentials: [
+            {
+                id: 'cred-chatgpt',
+                provider: 'chatgpt',
+                settings: { accountEmail: 'a@b.c' },
+            },
+        ],
+        models: [
+            {
+                id: 'm-chatgpt',
+                credentialId: 'cred-chatgpt',
+                model: 'gpt-6.1-sol',
+            },
+        ],
+        routing: { defaultModelId: 'm-chatgpt' },
+        ...over,
+    });
+    const selfHosted = () =>
+        ((environment as { API_CLOUD_MODE: boolean }).API_CLOUD_MODE = false);
+    afterEach(() => {
+        (environment as { API_CLOUD_MODE: boolean }).API_CLOUD_MODE = true;
+    });
+
+    it('saves a secret-free credential whose session belongs to the org, then reconciles', async () => {
+        selfHosted();
+        const { useCase, persisted, chatGptSessions } = buildUseCase(
+            undefined,
+            {
+                chatGptSessions: ['cred-chatgpt'],
+            },
+        );
+        await saveByok(useCase, chatgpt());
+        expect(persisted.value.credentials[0]).toEqual({
+            id: 'cred-chatgpt',
+            provider: 'chatgpt',
+            settings: { accountEmail: 'a@b.c' },
+        });
+        expect(chatGptSessions.reconcile).toHaveBeenCalledWith('org-1', [
+            'cred-chatgpt',
+        ]);
+    });
+
+    it('reconciles with no chatgpt ids when the save dropped the credential', async () => {
+        selfHosted();
+        const { useCase, chatGptSessions } = buildUseCase(chatgpt());
+        await saveByok(
+            useCase,
+            v2({
+                credentials: [
+                    { id: 'cred-openai', provider: 'openai', apiKey: 'sk-new' },
+                ],
+            }),
+        );
+        expect(chatGptSessions.reconcile).toHaveBeenCalledWith('org-1', []);
+    });
+
+    it('rule 1: refused on Kodus Cloud', async () => {
+        const { useCase, createOrUpdateConfig } = buildUseCase(undefined, {
+            chatGptSessions: ['cred-chatgpt'],
+        });
+        await expect(saveByok(useCase, chatgpt())).rejects.toThrow(
+            'available only on self-hosted',
+        );
+        expect(createOrUpdateConfig).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['an apiKey', { apiKey: 'sk-sneaky' }],
+        ['a secret setting', { settings: { awsBearerToken: 'secret' } }],
+    ])('rule 2: refuses %s on the credential', async (_n, over) => {
+        selfHosted();
+        const { useCase } = buildUseCase(undefined, {
+            chatGptSessions: ['cred-chatgpt'],
+        });
+        const config = chatgpt();
+        config.credentials[0] = { ...config.credentials[0], ...over };
+        await expect(saveByok(useCase, config)).rejects.toThrow(
+            'carries no API key',
+        );
+    });
+
+    it('rule 3: refuses a credential id without a session of this org', async () => {
+        selfHosted();
+        const { useCase } = buildUseCase(undefined, { chatGptSessions: [] });
+        await expect(saveByok(useCase, chatgpt())).rejects.toThrow(
+            'kodus chatgpt login',
+        );
+    });
+
+    it('rule 4: one chatgpt credential per org', async () => {
+        selfHosted();
+        const { useCase } = buildUseCase(undefined, {
+            chatGptSessions: ['cred-chatgpt', 'cred-chatgpt-2'],
+        });
+        const config = chatgpt();
+        config.credentials.push({ id: 'cred-chatgpt-2', provider: 'chatgpt' });
+        await expect(saveByok(useCase, config)).rejects.toThrow(
+            'Only one ChatGPT credential',
+        );
+    });
+
+    it('rule 5: reasoning overrides stay within reasoning, text and prompt cache', async () => {
+        selfHosted();
+        const { useCase } = buildUseCase(undefined, {
+            chatGptSessions: ['cred-chatgpt'],
+        });
+        const ok = chatgpt();
+        ok.models[0].reasoningConfigOverride =
+            '{"openai":{"reasoningEffort":"high","reasoningSummary":"auto"}}';
+        await expect(saveByok(useCase, ok)).resolves.toBe(true);
+        const bad = chatgpt();
+        bad.models[0].reasoningConfigOverride =
+            '{"store":true,"serviceTier":"flex"}';
+        await expect(saveByok(useCase, bad)).rejects.toMatchObject({
+            response: {
+                errors: [expect.stringContaining('got store, serviceTier')],
+            },
+        });
     });
 });

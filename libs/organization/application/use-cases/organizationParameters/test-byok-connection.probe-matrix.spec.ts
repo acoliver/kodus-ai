@@ -33,6 +33,8 @@ function useCase() {
         // The Kodus provider is a private alpha; the matrix probes it as an
         // allow-listed org would.
         { isEnabledFor: async () => true } as any,
+        // The ChatGPT plan probes the org's own session, resolved by id.
+        { credentialIdFor: async () => 'cred-chatgpt' } as any,
     );
 }
 
@@ -59,12 +61,15 @@ describe('connection probe covers every registered provider', () => {
     });
 
     it.each(PROBED_IDS)('%s issues one real model call', async (id) => {
-        const result = await useCase().execute({
-            provider: id,
-            apiKey: 'sk-test',
-            baseURL: 'https://example.com/v1',
-            model: MODEL_FOR[id] ?? 'some-model',
-        });
+        const result = await useCase().execute(
+            {
+                provider: id,
+                apiKey: 'sk-test',
+                baseURL: 'https://example.com/v1',
+                model: MODEL_FOR[id] ?? 'some-model',
+            },
+            'org-1',
+        );
 
         expect(result.ok).toBe(true);
         expect(result.code).toBe('ok');

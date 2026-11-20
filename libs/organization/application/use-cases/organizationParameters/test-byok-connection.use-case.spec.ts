@@ -1042,3 +1042,63 @@ describe('logs the degraded-success warning, not just the failures', () => {
         expect(msg).not.toContain('warning=');
     });
 });
+
+describe('chatgpt connection test', () => {
+    const make = (owned: string[]) =>
+        new TestByokConnectionUseCase(
+            { isProviderSupported: () => true } as any,
+            undefined,
+            {
+                credentialIdFor: jest.fn(async (org: string, id?: string) =>
+                    org === 'org-1' && (!id || owned.includes(id))
+                        ? owned[0]
+                        : undefined,
+                ),
+            } as any,
+        );
+
+    it('probes the review call on the org own session, with no key', async () => {
+        const result = await make(['cred-chatgpt']).execute(
+            {
+                provider: 'chatgpt',
+                model: 'gpt-6.1-sol',
+                credentialId: 'cred-chatgpt',
+            },
+            'org-1',
+        );
+        expect(result.ok).toBe(true);
+        expect(probedSlot()).toMatchObject({
+            provider: 'chatgpt',
+            model: 'gpt-6.1-sol',
+            credentialId: 'cred-chatgpt',
+        });
+    });
+
+    it('resolves the org only session when no credential id is given', async () => {
+        await make(['cred-chatgpt']).execute(
+            { provider: 'chatgpt', model: 'gpt-6.1-sol' },
+            'org-1',
+        );
+        expect(probedSlot().credentialId).toBe('cred-chatgpt');
+    });
+
+    it("refuses another org's credential before any probe", async () => {
+        await expect(
+            make(['cred-chatgpt']).execute(
+                {
+                    provider: 'chatgpt',
+                    model: 'gpt-6.1-sol',
+                    credentialId: 'cred-chatgpt',
+                },
+                'org-2',
+            ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(probeSlotCall).not.toHaveBeenCalled();
+    });
+
+    it('requires a model', async () => {
+        await expect(
+            make(['cred-chatgpt']).execute({ provider: 'chatgpt' }, 'org-1'),
+        ).rejects.toThrow('model is required');
+    });
+});

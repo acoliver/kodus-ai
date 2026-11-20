@@ -356,3 +356,27 @@ describe('TestByokModelUseCase', () => {
         });
     });
 });
+
+describe('TestByokModelUseCase — chatgpt', () => {
+    it('always probes (never trusts the catalog) with the credential id, no secret resolved', async () => {
+        const { useCase, connectionUseCase, getModels } = build({
+            configValue: null,
+            catalog: [{ id: 'gpt-6.1-sol', name: 'Sol' }],
+        });
+        await useCase.execute({
+            provider: 'chatgpt',
+            model: 'gpt-6.1-sol',
+            credentialId: 'cred-chatgpt',
+            organizationAndTeamData: org,
+        });
+        expect(getModels.execute).not.toHaveBeenCalled();
+        expect(connectionUseCase.execute).toHaveBeenCalledWith(
+            {
+                provider: 'chatgpt',
+                model: 'gpt-6.1-sol',
+                credentialId: 'cred-chatgpt',
+            },
+            'org-1',
+        );
+    });
+});

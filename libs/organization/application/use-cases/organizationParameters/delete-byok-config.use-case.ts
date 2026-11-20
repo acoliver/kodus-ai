@@ -16,6 +16,8 @@ import { isByokConfig } from '@libs/llm/byok-config';
 import { findModelReferences } from '@libs/llm/validate-byok-config-refs';
 import { collectCustomAgentModelOverrides } from './model-overrides.util';
 import { createLogger } from '@libs/core/log/logger';
+import { BYOKProvider } from '@libs/llm/model-providers';
+import { ChatGptSessionService } from '@libs/organization/infrastructure/adapters/services/chatgpt-session.service';
 import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 
 /**
@@ -127,6 +129,7 @@ export class DeleteByokConfigUseCase {
         private readonly parametersService: IParametersService,
         @Inject(TEAM_SERVICE_TOKEN)
         private readonly teamService: ITeamService,
+        private readonly chatGptSessions: ChatGptSessionService,
     ) {}
 
     async execute(
@@ -226,9 +229,28 @@ export class DeleteByokConfigUseCase {
         // Clear: hand the validated model id to the service, which performs the
         // removal (drop the models[] entry + any now-orphan non-managed
         // credential) and the last-model disconnect (removes the whole config).
-        return await this.organizationParametersService.deleteByokModel(
-            organizationId,
-            modelId,
+        const deleted =
+            await this.organizationParametersService.deleteByokModel(
+                organizationId,
+                modelId,
+            );
+
+        // The delete drops a credential no remaining model references (or the
+        // whole config), which can take the org's `chatgpt` credential: its
+        // session is then revoked and deleted.
+        const after = await this.organizationParametersService.findByKey(
+            OrganizationParametersKey.BYOK_CONFIG,
+            organizationAndTeamData,
         );
+        const remaining = isByokConfig(after?.configValue)
+            ? (after.configValue.credentials ?? [])
+            : [];
+        await this.chatGptSessions.reconcile(
+            organizationId,
+            remaining
+                .filter((c) => c?.provider === BYOKProvider.CHATGPT)
+                .map((c) => c.id),
+        );
+        return deleted;
     }
 }

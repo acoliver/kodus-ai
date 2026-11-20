@@ -28,6 +28,7 @@ import { ProviderModule } from '@libs/core/infrastructure/services/providers/pro
 import { ParametersModule } from './parameters.module';
 import { TeamModule } from './team.module';
 import { OrganizationModule } from './organization.module';
+import { ChatGptSessionModule } from './chatgpt-session.module';
 import {
     KODUS_PROVIDER_GATE_TOKEN,
     KodusProviderGate,
@@ -44,6 +45,9 @@ import {
         // The Kodus provider gate reads the org's release track.
         forwardRef(() => OrganizationModule),
         ProviderModule,
+        // BYOK saves validate and reconcile `chatgpt` credentials against
+        // their sessions; listing and the connection test read them.
+        ChatGptSessionModule,
     ],
     providers: [
         {

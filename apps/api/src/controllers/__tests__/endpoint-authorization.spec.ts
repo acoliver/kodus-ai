@@ -60,6 +60,7 @@ const INTENTIONALLY_UNGATED = new Set<string>([
     'notification.controller.ts#getNotificationConfig', // static notification catalog for the UI
     'organizationParameters.controller.ts#listProviders', // static LLM provider catalog
     'organizationParameters.controller.ts#listModels', // static LLM model catalog
+    'chatgpt-sign-in.controller.ts#host', // deployment's ChatGPT agent host id: opaque, not a credential
     'organization.controller.ts#getOrganizationName', // org name for caller's org
     'organization.controller.ts#getOrganizationLanguage', // org language for caller's org
     'organization.controller.ts#getReleaseTrack', // release-track flag for caller's org

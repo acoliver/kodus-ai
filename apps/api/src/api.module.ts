@@ -76,6 +76,8 @@ import { LicenseController } from './controllers/license.controller';
 import { OrganizationController } from './controllers/organization.controller';
 import { TrialExtensionNotifierService } from './services/trial-extension-notifier.service';
 import { OrganizationParametersController } from './controllers/organizationParameters.controller';
+import { ChatGptSignInController } from './controllers/chatgpt-sign-in.controller';
+import { ChatGptSignInModule } from '@libs/organization/modules/chatgpt-sign-in.module';
 import { ParametersController } from './controllers/parameters.controller';
 import { PermissionsController } from './controllers/permissions.controller';
 import {
@@ -173,6 +175,7 @@ import { SelfHostedDoctorModule } from './doctor/self-hosted-doctor.module';
         CentralizedConfigModule,
         NotificationModule,
         SelfHostedDoctorModule,
+        ChatGptSignInModule,
     ],
     controllers: [
         CodeManagementController,
@@ -186,6 +189,7 @@ import { SelfHostedDoctorModule } from './doctor/self-hosted-doctor.module';
         OrganizationController,
         ParametersController,
         OrganizationParametersController,
+        ChatGptSignInController,
         SkillsController,
         BusinessLogicController,
         CustomAgentsController,

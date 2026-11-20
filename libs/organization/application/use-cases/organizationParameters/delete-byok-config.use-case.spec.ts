@@ -70,10 +70,12 @@ function buildUseCase(opts: {
             Object.keys(teamConfigs).map((uuid) => ({ uuid })),
         ),
     } as any;
+    const chatGptSessions = { reconcile: jest.fn(async () => undefined) };
     const useCase = new DeleteByokConfigUseCase(
         organizationParametersService,
         parametersService,
         teamService,
+        chatGptSessions as any,
     );
     return {
         useCase,
@@ -81,6 +83,7 @@ function buildUseCase(opts: {
         deleteByokConfig,
         organizationParametersService,
         teamService,
+        chatGptSessions,
     };
 }
 
@@ -563,6 +566,7 @@ function buildExecuteHarness(opts: {
         organizationParametersService,
         parametersService,
         teamService,
+        { reconcile: jest.fn(async () => undefined) } as any,
     );
     return {
         useCase,
@@ -973,7 +977,9 @@ describe('DeleteByokConfigUseCase.execute — deterministic guards & branches', 
         const teamSvc = {
             find: jest.fn().mockResolvedValue([{ uuid: TEAM }]),
         } as any;
-        const uc = new DeleteByokConfigUseCase(orgSvc, paramSvc, teamSvc);
+        const uc = new DeleteByokConfigUseCase(orgSvc, paramSvc, teamSvc, {
+            reconcile: jest.fn(async () => undefined),
+        } as any);
         await expect(uc.execute(ORG, { modelId: 'm2' })).resolves.toBe(true);
         expect(deleteByokModel).toHaveBeenCalledWith(ORG, 'm2');
     });
@@ -1045,5 +1051,108 @@ describe('DeleteByokConfigUseCase.execute — deterministic guards & branches', 
                 'your fallback model; repository "acme/api" (byokModelId)',
             );
         }
+    });
+});
+
+describe('DeleteByokConfigUseCase — ChatGPT session reconcile', () => {
+    const withChatGpt = () =>
+        makeByokConfig({
+            credentials: [
+                { id: 'cred-openai', provider: 'openai', apiKey: 'enc' },
+                { id: 'cred-chatgpt', provider: 'chatgpt', settings: {} },
+            ],
+            models: [
+                { id: 'm1', credentialId: 'cred-openai', model: 'gpt-5' },
+                {
+                    id: 'm2',
+                    credentialId: 'cred-chatgpt',
+                    model: 'gpt-6.1-sol',
+                },
+            ],
+            routing: { mode: 'manual', defaultModelId: 'm1' },
+        } as any);
+
+    it('reconciles with the chatgpt credentials left after the delete', async () => {
+        const { useCase, organizationParametersService, chatGptSessions } =
+            buildUseCase({ byokConfig: withChatGpt() });
+        // After the delete the service dropped the orphan chatgpt credential.
+        organizationParametersService.findByKey
+            .mockResolvedValueOnce({ configValue: withChatGpt() })
+            .mockResolvedValueOnce({
+                configValue: makeByokConfig({
+                    credentials: [
+                        {
+                            id: 'cred-openai',
+                            provider: 'openai',
+                            apiKey: 'enc',
+                        },
+                    ],
+                    models: [
+                        {
+                            id: 'm1',
+                            credentialId: 'cred-openai',
+                            model: 'gpt-5',
+                        },
+                    ],
+                } as any),
+            });
+        await useCase.execute(ORG, { modelId: 'm2' });
+        expect(chatGptSessions.reconcile).toHaveBeenCalledWith(ORG, []);
+    });
+
+    it('keeps the chatgpt session when its credential survives', async () => {
+        const { useCase, chatGptSessions } = buildUseCase({
+            byokConfig: withChatGpt(),
+        });
+        await useCase.execute(ORG, { modelId: 'm2' });
+        expect(chatGptSessions.reconcile).toHaveBeenCalledWith(ORG, [
+            'cred-chatgpt',
+        ]);
+    });
+
+    it('a last-model disconnect (config gone) removes every session', async () => {
+        const { useCase, organizationParametersService, chatGptSessions } =
+            buildUseCase({
+                byokConfig: makeByokConfig({
+                    credentials: [
+                        {
+                            id: 'cred-chatgpt',
+                            provider: 'chatgpt',
+                            settings: {},
+                        },
+                    ],
+                    models: [
+                        {
+                            id: 'm2',
+                            credentialId: 'cred-chatgpt',
+                            model: 'gpt-6.1-sol',
+                        },
+                    ],
+                    routing: { mode: 'manual', defaultModelId: 'm2' },
+                } as any),
+            });
+        organizationParametersService.findByKey
+            .mockResolvedValueOnce({
+                configValue: makeByokConfig({
+                    credentials: [
+                        {
+                            id: 'cred-chatgpt',
+                            provider: 'chatgpt',
+                            settings: {},
+                        },
+                    ],
+                    models: [
+                        {
+                            id: 'm2',
+                            credentialId: 'cred-chatgpt',
+                            model: 'gpt-6.1-sol',
+                        },
+                    ],
+                    routing: { mode: 'manual', defaultModelId: 'm2' },
+                } as any),
+            })
+            .mockResolvedValueOnce(null);
+        await useCase.execute(ORG, { modelId: 'm2' });
+        expect(chatGptSessions.reconcile).toHaveBeenCalledWith(ORG, []);
     });
 });

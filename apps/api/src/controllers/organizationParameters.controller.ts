@@ -412,6 +412,8 @@ export class OrganizationParametersController {
                 awsSecretAccessKey: { type: 'string' },
                 awsRegion: { type: 'string' },
                 awsSessionToken: { type: 'string' },
+                // The saved ChatGPT credential to probe (its session pays).
+                credentialId: { type: 'string' },
             },
         },
     })
@@ -439,6 +441,7 @@ export class OrganizationParametersController {
             awsSecretAccessKey?: string;
             awsRegion?: string;
             awsSessionToken?: string;
+            credentialId?: string;
         },
     ): Promise<TestByokResult> {
         return await this.testByokConnectionUseCase.execute(

@@ -39,6 +39,8 @@ import { UserRequest } from '@libs/core/infrastructure/config/types/http/user-re
 import { AuditLogEvents } from '@libs/ee/codeReviewSettingsLog/events/audit-log.events';
 import { ActionType } from '@libs/core/infrastructure/config/types/general/codeReviewSettingsLog.type';
 import { TelemetryService } from '@libs/telemetry/application/services/telemetry.service';
+import { ChatGptSessionService } from '@libs/organization/infrastructure/adapters/services/chatgpt-session.service';
+import { reasoningOverrideOf } from '@libs/llm/providers/chatgpt/override-allowlist';
 
 const AUDITABLE_KEYS = new Set([
     OrganizationParametersKey.AUTO_JOIN_CONFIG,
@@ -64,6 +66,8 @@ export class CreateOrUpdateOrganizationParametersUseCase implements IUseCase {
         @Optional()
         @Inject(KODUS_PROVIDER_GATE_TOKEN)
         private readonly kodusGate?: KodusProviderGate,
+        // Required by DI (no @Optional); `?` only because it follows one.
+        private readonly chatGptSessions?: ChatGptSessionService,
     ) {}
 
     async execute(
@@ -199,6 +203,10 @@ export class CreateOrUpdateOrganizationParametersUseCase implements IUseCase {
                 configValue as BYOKConfig,
                 isByokConfig(existingConfig) ? existingConfig : undefined,
             );
+            await this.assertChatGptCredentials(
+                configValue as BYOKConfig,
+                organizationAndTeamData.organizationId,
+            );
         }
 
         const processedConfigValue = this.encryptByokConfigApiKey(
@@ -231,6 +239,14 @@ export class CreateOrUpdateOrganizationParametersUseCase implements IUseCase {
         });
 
         if (result) {
+            // A `chatgpt` credential the save removed takes its session with
+            // it: revoked, then deleted. Nothing references it any more.
+            await this.chatGptSessions.reconcile(
+                organizationAndTeamData.organizationId,
+                (mergedConfigValue.credentials ?? [])
+                    .filter((c) => c?.provider === BYOKProvider.CHATGPT)
+                    .map((c) => c.id),
+            );
             // Every org setting, named by its key. BYOK gets the richer
             // event below; this is what makes a new toggle visible in
             // analytics without another method here.
@@ -350,6 +366,77 @@ export class CreateOrUpdateOrganizationParametersUseCase implements IUseCase {
             throw new BadRequestException({
                 message:
                     'Invalid BYOK configuration: unparsable reasoning override',
+                errors,
+            });
+        }
+    }
+
+    /**
+     * A `chatgpt` credential is connected with `kodus chatgpt login`, never
+     * typed. Its id is valid only when a session row of THIS org carries it
+     * (`credential_id` is globally unique, so one org cannot point at
+     * another's), it carries no secret, there is one per org, and its models'
+     * reasoning overrides stay inside what the preview accepts.
+     */
+    private async assertChatGptCredentials(
+        config: BYOKConfig,
+        organizationId: string,
+    ): Promise<void> {
+        const chatgpt = (config.credentials ?? []).filter(
+            (c) => c?.provider === BYOKProvider.CHATGPT,
+        );
+        if (!chatgpt.length) return;
+        if (!isProviderAvailableHere(BYOKProvider.CHATGPT)) {
+            throw new BadRequestException(
+                'ChatGPT plan usage is available only on self-hosted Kodus',
+            );
+        }
+        if (chatgpt.length > 1) {
+            throw new BadRequestException(
+                'Only one ChatGPT credential per organization is supported',
+            );
+        }
+        const [cred] = chatgpt;
+        const settings = (cred.settings ?? {}) as Record<string, unknown>;
+        const hasSecret =
+            (typeof cred.apiKey === 'string' && cred.apiKey.trim() !== '') ||
+            BYOK_SECRET_SETTINGS.some(
+                (field) =>
+                    typeof settings[field] === 'string' &&
+                    (settings[field] as string).trim() !== '',
+            );
+        if (hasSecret) {
+            throw new BadRequestException(
+                'A ChatGPT credential carries no API key or secret',
+            );
+        }
+        if (
+            !(await this.chatGptSessions.existsForOrganization(
+                organizationId,
+                cred.id,
+            ))
+        ) {
+            throw new BadRequestException(
+                'ChatGPT credentials are added with `kodus chatgpt login`',
+            );
+        }
+        const errors: string[] = [];
+        for (const model of config.models ?? []) {
+            if (model?.credentialId !== cred.id) continue;
+            const rejected = reasoningOverrideOf(
+                (model as { reasoningConfigOverride?: unknown })
+                    .reasoningConfigOverride,
+            ).rejectedKeys;
+            if (rejected.length) {
+                errors.push(
+                    `Model "${model.model ?? model.id}": the ChatGPT plan accepts only reasoningEffort, reasoningSummary, textVerbosity and promptCacheKey overrides (got ${rejected.join(', ')}).`,
+                );
+            }
+        }
+        if (errors.length) {
+            throw new BadRequestException({
+                message:
+                    'Invalid BYOK configuration: unsupported ChatGPT override',
                 errors,
             });
         }
@@ -576,6 +663,11 @@ export class CreateOrUpdateOrganizationParametersUseCase implements IUseCase {
                     'The Kodus provider is only available on Kodus Cloud',
                 );
             }
+            return;
+        }
+        // ChatGPT plan: no secret by design; the session behind it was proven
+        // by assertChatGptCredentials before the encrypt pass.
+        if (cred?.provider === BYOKProvider.CHATGPT) {
             return;
         }
         const settings = (cred?.settings ?? {}) as Record<string, unknown>;

@@ -7,6 +7,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
 import { resolveByokSlot } from './byok-credentials.util';
 import { isCuratedCatalogProvider } from '@libs/llm/providers';
+import { BYOKProvider } from '@libs/llm/model-providers';
 import { createLogger } from '@libs/core/log/logger';
 import { GetModelsByProviderUseCase } from './get-models-by-provider.use-case';
 import {
@@ -67,6 +68,20 @@ export class TestByokModelUseCase {
         const model = input.model?.trim();
         if (!model) {
             throw new BadRequestException('model is required');
+        }
+
+        // ChatGPT plan: the credential carries no secret to resolve, and its
+        // catalog lists what the account may see, not what the preview will
+        // run. Only the review's own call proves the model, so always probe.
+        if (input.provider === BYOKProvider.CHATGPT) {
+            return this.testByokConnectionUseCase.execute(
+                {
+                    provider: input.provider,
+                    model,
+                    credentialId: input.credentialId,
+                },
+                input.organizationAndTeamData?.organizationId,
+            );
         }
 
         const slot = await resolveByokSlot(

@@ -22,6 +22,7 @@ import {
 } from '@libs/core/infrastructure/services/providers/kodus-provider-gate.service';
 import { ProviderService } from '@libs/core/infrastructure/services/providers/provider.service';
 import { createLogger } from '@libs/core/log/logger';
+import { ChatGptSessionService } from '@libs/organization/infrastructure/adapters/services/chatgpt-session.service';
 import { BadRequestException, Injectable, Optional, Inject } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { lookup } from 'dns/promises';
@@ -241,6 +242,9 @@ type TestByokInput = {
     awsSecretAccessKey?: string;
     awsRegion?: string;
     awsSessionToken?: string;
+    /** The saved credential the probe runs on: required for `chatgpt`, whose
+     *  credential carries no key and resolves its session by this id. */
+    credentialId?: string;
 };
 
 const TEST_TIMEOUT_MS = 15_000;
@@ -254,6 +258,8 @@ export class TestByokConnectionUseCase {
         @Optional()
         @Inject(KODUS_PROVIDER_GATE_TOKEN)
         private readonly kodusGate?: KodusProviderGate,
+        // Required by DI (no @Optional); `?` only because it follows one.
+        private readonly chatGptSessions?: ChatGptSessionService,
     ) {}
 
     /**
@@ -280,6 +286,17 @@ export class TestByokConnectionUseCase {
                     metadata: { organizationId, provider: input?.provider },
                 });
                 throw new BadRequestException(KODUS_PROVIDER_NOT_ENABLED_MESSAGE);
+            }
+            // A ChatGPT probe spends the plan of the session it names, so the
+            // session must be one of the caller's own org.
+            if (input?.provider === BYOKProvider.CHATGPT) {
+                input = {
+                    ...input,
+                    credentialId: await this.ownChatGptCredential(
+                        organizationId,
+                        input.credentialId,
+                    ),
+                };
             }
             const result = await this.runTest(input);
             this.logTestOutcome(input, result);
@@ -319,6 +336,26 @@ export class TestByokConnectionUseCase {
         });
     }
 
+    /** The named credential when it is one of the org's ChatGPT sessions,
+     *  else the org's only one; refused when the org has none. */
+    private async ownChatGptCredential(
+        organizationId: string | undefined,
+        credentialId: string | undefined,
+    ): Promise<string> {
+        const id = organizationId
+            ? await this.chatGptSessions.credentialIdFor(
+                  organizationId,
+                  credentialId,
+              )
+            : undefined;
+        if (!id) {
+            throw new BadRequestException(
+                'No ChatGPT sign-in of this organization matches; run `kodus chatgpt login`',
+            );
+        }
+        return id;
+    }
+
     private async runTest(input: TestByokInput): Promise<TestByokResult> {
         const { provider, apiKey, baseURL } = input;
 
@@ -347,6 +384,16 @@ export class TestByokConnectionUseCase {
                 latencyMs: 0,
                 message: tuningIssues.map((i) => i.message).join(' '),
             };
+        }
+
+        // ChatGPT plan: no key to check, a fixed endpoint, and the session is
+        // resolved per request by credential id. The probe is the review's
+        // own call, which is the only proof the plan accepts this model.
+        if (byokProvider === BYOKProvider.CHATGPT) {
+            if (!input.model?.trim()) {
+                throw new BadRequestException('model is required for chatgpt');
+            }
+            return await this.probeViaRuntime(input);
         }
 
         // Vertex: SA JSON (apiKey) + optional location. Validate auth via
@@ -629,6 +676,7 @@ export class TestByokConnectionUseCase {
             awsSecretAccessKey: encryptIfPresent(input.awsSecretAccessKey),
             awsRegion: input.awsRegion,
             awsSessionToken: encryptIfPresent(input.awsSessionToken),
+            credentialId: input.credentialId,
         } as NormalizedModel;
     }
 

@@ -18,6 +18,7 @@ import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/commo
 import axios from 'axios';
 
 import { resolveByokSlot } from './byok-credentials.util';
+import { ChatGptSessionService } from '@libs/organization/infrastructure/adapters/services/chatgpt-session.service';
 import { assertSafeOpenAICompatibleUrl } from './test-byok-connection.use-case';
 
 export interface ModelResponse {
@@ -55,6 +56,8 @@ export class GetModelsByProviderUseCase {
         @Optional()
         @Inject(KODUS_PROVIDER_GATE_TOKEN)
         private readonly kodusGate?: KodusProviderGate,
+        // Required by DI (no @Optional); `?` only because it follows one.
+        private readonly chatGptSessions?: ChatGptSessionService,
     ) {}
 
     async execute(
@@ -106,6 +109,12 @@ export class GetModelsByProviderUseCase {
         }
 
         const byokProvider = provider as BYOKProvider;
+        if (byokProvider === BYOKProvider.CHATGPT) {
+            return this.listChatGptModels(
+                organizationAndTeamData?.organizationId,
+                credentialId,
+            );
+        }
         const candidateKey = candidate?.apiKey?.trim() || undefined;
         const candidateBaseURL = candidate?.baseURL?.trim() || undefined;
         // Scoped to Bedrock: these fields mean nothing to any other provider's
@@ -333,5 +342,32 @@ export class GetModelsByProviderUseCase {
                 `Error fetching ${provider} models: ${(error as Error).message}`,
             );
         }
+    }
+
+    /**
+     * The org's ChatGPT catalog, live and strict: the account decides which
+     * slugs it may use, so there is no curated fallback and no env key. The
+     * credential must be one of the caller's own org's sessions.
+     */
+    private async listChatGptModels(
+        organizationId: string | undefined,
+        credentialId: string | undefined,
+    ): Promise<ModelResponse> {
+        const id = organizationId
+            ? await this.chatGptSessions.credentialIdFor(
+                  organizationId,
+                  credentialId,
+              )
+            : undefined;
+        if (!id) {
+            throw new BadRequestException(
+                'No ChatGPT sign-in for this organization; run `kodus chatgpt login`',
+            );
+        }
+        return {
+            provider: BYOKProvider.CHATGPT,
+            models: await this.chatGptSessions.listModels(id),
+            exercisedCredential: true,
+        };
     }
 }

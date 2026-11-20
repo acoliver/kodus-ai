@@ -683,3 +683,51 @@ describe('GetModelsByProviderUseCase — a saved credential named by id', () => 
         expect(cfg?.headers?.Authorization).toBe('Bearer decrypted:enc-b');
     });
 });
+
+describe('GetModelsByProviderUseCase — chatgpt', () => {
+    beforeEach(() => mockedAxios.get.mockClear());
+    const sessions = (owned: string[]) => ({
+        credentialIdFor: jest.fn(async (org: string, id?: string) =>
+            org === 'org-1' && (!id || owned.includes(id))
+                ? owned[0]
+                : undefined,
+        ),
+        listModels: jest.fn(async () => [{ id: 'gpt-6.1-sol', name: 'Sol' }]),
+    });
+    const make = (s: ReturnType<typeof sessions>) =>
+        new GetModelsByProviderUseCase(
+            { isProviderSupported: () => true } as any,
+            { findByKey: jest.fn() } as any,
+            undefined,
+            s as any,
+        );
+
+    it("lists the org's own session catalog, live and strict", async () => {
+        const s = sessions(['cred-chatgpt']);
+        await expect(
+            make(s).execute('chatgpt', { organizationId: 'org-1' }),
+        ).resolves.toEqual({
+            provider: BYOKProvider.CHATGPT,
+            models: [{ id: 'gpt-6.1-sol', name: 'Sol' }],
+            exercisedCredential: true,
+        });
+        expect(s.listModels).toHaveBeenCalledWith('cred-chatgpt');
+        expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+
+    it("refuses another org's credential id and an org without a sign-in", async () => {
+        const s = sessions(['cred-chatgpt']);
+        await expect(
+            make(s).execute(
+                'chatgpt',
+                { organizationId: 'org-2' },
+                undefined,
+                'cred-chatgpt',
+            ),
+        ).rejects.toThrow('kodus chatgpt login');
+        await expect(
+            make(sessions([])).execute('chatgpt', { organizationId: 'org-1' }),
+        ).rejects.toThrow('kodus chatgpt login');
+        expect(s.listModels).not.toHaveBeenCalled();
+    });
+});

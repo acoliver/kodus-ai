@@ -88,6 +88,50 @@
     }
   },
   {
+    "key": "chatgpt-sign-in.controller.ts#logout",
+    "httpMethod": "DELETE",
+    "urlPath": "/organization-parameters/byok/chatgpt/session",
+    "expected": {
+      "owner": "allow",
+      "billing_manager": "deny",
+      "repo_admin": "deny",
+      "contributor": "deny"
+    }
+  },
+  {
+    "key": "chatgpt-sign-in.controller.ts#model",
+    "httpMethod": "POST",
+    "urlPath": "/organization-parameters/byok/chatgpt/model",
+    "expected": {
+      "owner": "allow",
+      "billing_manager": "deny",
+      "repo_admin": "deny",
+      "contributor": "deny"
+    }
+  },
+  {
+    "key": "chatgpt-sign-in.controller.ts#registration",
+    "httpMethod": "GET",
+    "urlPath": "/organization-parameters/byok/chatgpt/registration",
+    "expected": {
+      "owner": "allow",
+      "billing_manager": "deny",
+      "repo_admin": "deny",
+      "contributor": "deny"
+    }
+  },
+  {
+    "key": "chatgpt-sign-in.controller.ts#session",
+    "httpMethod": "POST",
+    "urlPath": "/organization-parameters/byok/chatgpt/session",
+    "expected": {
+      "owner": "allow",
+      "billing_manager": "deny",
+      "repo_admin": "deny",
+      "contributor": "deny"
+    }
+  },
+  {
     "key": "cli-reviews.controller.ts#detail",
     "httpMethod": "GET",
     "urlPath": "/cli-reviews/:executionUuid",

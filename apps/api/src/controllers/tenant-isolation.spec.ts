@@ -4,6 +4,8 @@ import { OrganizationParametersKey } from '@libs/core/domain/enums';
 
 import { CodeManagementController } from './codeManagement.controller';
 import { OrganizationParametersController } from './organizationParameters.controller';
+import { ChatGptSignInController } from './chatgpt-sign-in.controller';
+import { environment } from '@libs/ee/configs/environment';
 
 /**
  * Tenant isolation — these endpoints took the target
@@ -151,5 +153,34 @@ describe('organization-parameters create-or-update — key denylist', () => {
             configValue: { timezone: 'UTC' },
         });
         expect(execute).toHaveBeenCalled();
+    });
+
+    it('ChatGPT sign-in scopes every route to the principal organization', async () => {
+        const principalOrg = 'my-org';
+        const victimOrg = 'victim-org';
+        const controller: any = Object.create(
+            ChatGptSignInController.prototype,
+        );
+        controller.request = { user: { organization: { uuid: principalOrg } } };
+        const execute = jest.fn().mockResolvedValue({});
+        controller.importSession = { execute };
+        controller.logoutSession = { execute };
+        // The routes exist on self-hosted only.
+        const env = environment as { API_CLOUD_MODE: boolean };
+        const cloud = env.API_CLOUD_MODE;
+        env.API_CLOUD_MODE = false;
+        try {
+            await controller.session({
+                organizationId: victimOrg,
+                bundle: {},
+            });
+            await controller.logout();
+        } finally {
+            env.API_CLOUD_MODE = cloud;
+        }
+        expect(execute.mock.calls.map((c) => c[0])).toEqual([
+            principalOrg,
+            principalOrg,
+        ]);
     });
 });
