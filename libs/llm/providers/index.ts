@@ -21,6 +21,8 @@ import './azure';
 import './zai';
 // Kodus-as-provider (routing brand over the three modules above; cloud-only).
 import './kodus';
+// ChatGPT plan (Sign in with ChatGPT; self-hosted only).
+import './chatgpt';
 
 export { REGISTRY, registerProvider } from './kernel/registry';
 export type { ProviderModule, SelfHostedEnvVars } from './kernel/types';

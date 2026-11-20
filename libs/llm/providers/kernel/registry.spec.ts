@@ -22,6 +22,7 @@ import { bedrockModule } from '../bedrock/index';
 import { novitaModule } from '../novita/index';
 import { moonshotModule } from '../moonshot/index';
 import { kodusModule } from '../kodus/index';
+import { chatgptModule } from '../chatgpt/index';
 // D-05 registry-wide sweep (03-13): drive each module's real normalize boundary
 // through the 03-01 conformance harness against its committed fixture.
 import { runConformance, type ProviderFixture } from './conformance';
@@ -41,7 +42,7 @@ import kodusPlainFixture from '../kodus/__fixtures__/plain.json';
 // from env — give it one so the offline build() constructs (no request is made).
 process.env.API_KODUS_PROVIDER_FIREWORKS_API_KEY = 'sk-kodus-platform-not-real';
 
-/** The eleven BYOKProvider ids the registry must fully cover (azure added). */
+/** Every BYOKProvider id the registry must fully cover. */
 const ALL_IDS = [
     'openai',
     'openai_compatible',
@@ -56,6 +57,7 @@ const ALL_IDS = [
     'azure',
     'zai',
     'kodus',
+    'chatgpt',
 ];
 
 const EFFORTS: ReasoningEffort[] = ['none', 'low', 'medium', 'high'];
@@ -68,6 +70,8 @@ function sampleConfig(provider: string, model: string, baseURL?: string): Provid
         apiKey: 'sk-test-key-not-real',
         model,
         ...(baseURL ? { baseURL } : {}),
+        // The ChatGPT plan build fails fast without the session's credential id.
+        ...(provider === 'chatgpt' ? { credentialId: 'cred-conformance' } : {}),
     };
 }
 
@@ -216,17 +220,23 @@ describe('01-02 ported modules — static conformance', () => {
         model: 'fireworks/accounts/fireworks/models/deepseek-v4-flash-0731',
         reasoningModel: 'fireworks/accounts/fireworks/models/deepseek-v4-flash-0731',
     });
+    // The ChatGPT plan: no key, a credential id, OpenAI Responses underneath.
+    runStaticConformance(chatgptModule, {
+        provider: 'chatgpt',
+        model: 'gpt-6.1-sol',
+        reasoningModel: 'gpt-6.1-sol',
+    });
 });
 
-describe('registry covers all thirteen BYOKProvider ids', () => {
+describe('registry covers all fourteen BYOKProvider ids', () => {
     it('every id resolves to a registered module', () => {
         for (const id of ALL_IDS) {
             expect(REGISTRY.has(id)).toBe(true);
             expect(REGISTRY.get(id)).toBeDefined();
         }
     });
-    it('registers exactly 11 distinct module objects for the 13 ids', () => {
-        expect(REGISTRY.all().length).toBe(11);
+    it('registers exactly 12 distinct module objects for the 14 ids', () => {
+        expect(REGISTRY.all().length).toBe(12);
         expect(new Set(REGISTRY.ids())).toEqual(new Set(ALL_IDS));
     });
 });
@@ -324,6 +334,12 @@ const CONFORMANCE_SAMPLES: Record<
         // dispatches to the native anthropic module offline.
         cfg: { ...sampleConfig('kodus', 'fireworks/accounts/fireworks/models/deepseek-v4-flash-0731'), apiKey: '' },
         fixture: kodusPlainFixture as ProviderFixture,
+    },
+    chatgpt: {
+        // OpenAI Responses usage (reasoning split) through the shared SDK
+        // normalizer; the slot carries no key, only the session credential id.
+        cfg: { ...sampleConfig('chatgpt', 'gpt-6.1-sol'), apiKey: '' },
+        fixture: openaiReasoningFixture as ProviderFixture,
     },
 };
 

@@ -32,4 +32,11 @@ export enum BYOKProvider {
      * Cloud-only; see libs/llm/providers/kodus.
      */
     KODUS = 'kodus',
+    /**
+     * The org's ChatGPT plan, connected with `kodus chatgpt login` ("Sign in
+     * with ChatGPT"). The credential carries no key: the rotating tokens live
+     * in the `chatgpt_sessions` table. Self-hosted only; see
+     * libs/llm/providers/chatgpt.
+     */
+    CHATGPT = 'chatgpt',
 }

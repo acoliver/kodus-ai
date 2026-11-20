@@ -33,6 +33,7 @@ import { moonshotModule } from '../moonshot/index';
 import { azureModule } from '../azure/index';
 import { zaiModule } from '../zai/index';
 import { kodusModule } from '../kodus';
+import { chatgptModule } from '../chatgpt';
 
 import openaiPlain from '../openai/__fixtures__/plain.json';
 import openaiReasoning from '../openai/__fixtures__/reasoning.json';
@@ -135,6 +136,15 @@ const CASES: ProviderCase[] = [
                 name: 'reasoning',
                 fixture: anthropicReasoning as ProviderFixture,
             },
+        ],
+    },
+    {
+        // The ChatGPT plan is OpenAI Responses underneath and shares the SDK
+        // usage normalizer, so OpenAI's reasoning fixture proves the invariant.
+        module: chatgptModule,
+        model: 'gpt-6.1-sol',
+        fixtures: [
+            { name: 'reasoning', fixture: openaiReasoning as ProviderFixture },
         ],
     },
 ];
