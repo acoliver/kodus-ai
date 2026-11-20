@@ -34,7 +34,9 @@ export interface ManualModelPricing {
 /** Map of model name → org-entered pricing. Keys match the configured model id. */
 export type ManualPricingOverrides = Record<string, ManualModelPricing>;
 
-export type PricingSource = 'manual' | 'catalog' | 'none';
+/** `'included'`: usage paid for by a subscription outside Kodus (the ChatGPT
+ *  plan), priced at zero but still counted in tokens. */
+export type PricingSource = 'manual' | 'catalog' | 'included' | 'none';
 
 /**
  * Resolved pricing for one model. `source: 'none'` (priced=false) means we

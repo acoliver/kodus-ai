@@ -77,6 +77,19 @@ describe('ModelCostCalculator', () => {
         expect(tokenPricingUseCase.execute).not.toHaveBeenCalled();
     });
 
+    it('ChatGPT plan usage costs nothing and never reaches the catalog', async () => {
+        const byModel = await calculator.spendByModel([
+            {
+                input: 100_000,
+                output: 40_000,
+                outputReasoning: 0,
+                model: 'chatgpt:gpt-6.1-sol',
+            },
+        ]);
+        expect(byModel[0].spentUsd).toBe(0);
+        expect(tokenPricingUseCase.execute).not.toHaveBeenCalled();
+    });
+
     it('prices a flat row at default rates (no byTier present)', async () => {
         tokenPricingUseCase.execute.mockResolvedValue(
             pricingFromMillions({

@@ -56,6 +56,29 @@ describe('PricingResolver', () => {
         resolver = new PricingResolver(tokenPricingUseCase as any);
     });
 
+    it('prices ChatGPT plan usage as included at zero, ahead of any override', async () => {
+        const resolved = await resolver.resolve('chatgpt:gpt-6.1-sol', {
+            'chatgpt:gpt-6.1-sol': {
+                input: 1,
+                output: 1,
+                cacheRead: 1,
+                cacheWrite: 1,
+            },
+        });
+        expect(resolved).toEqual({
+            model: 'chatgpt:gpt-6.1-sol',
+            source: 'included',
+            priced: true,
+            rates: {
+                input: { default: 0 },
+                output: { default: 0 },
+                cacheRead: { default: 0 },
+                cacheWrite: { default: 0 },
+            },
+        });
+        expect(tokenPricingUseCase.execute).not.toHaveBeenCalled();
+    });
+
     it('prefers a manual override and never consults the catalog', async () => {
         const resolved = await resolver.resolve('custom-model', {
             'custom-model': {

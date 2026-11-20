@@ -55,6 +55,57 @@ describe('BuildUsageSummaryUseCase.execute (enrich)', () => {
         );
     };
 
+    it('labels ChatGPT plan usage "included" at $0, tokens kept', async () => {
+        const tokenUsageService = {
+            getSummary: jest.fn().mockResolvedValue({
+                model: '',
+                input: 0,
+                output: 0,
+                total: 0,
+                outputReasoning: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+            }),
+            getSummaryByModel: jest.fn().mockResolvedValue([
+                {
+                    model: 'chatgpt:gpt-6.1-sol',
+                    input: 1_000,
+                    output: 500,
+                    total: 1_500,
+                    outputReasoning: 0,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                },
+            ]),
+        };
+        const zero = { default: 0 };
+        const pricingResolver = {
+            resolve: jest.fn(async (model: string) => ({
+                model,
+                source: 'included',
+                priced: true,
+                rates: {
+                    input: zero,
+                    output: zero,
+                    cacheRead: zero,
+                    cacheWrite: zero,
+                },
+            })),
+        };
+        const useCase = new BuildUsageSummaryUseCase(
+            tokenUsageService as any,
+            pricingResolver as any,
+            {
+                getFromCache: jest.fn().mockResolvedValue(null),
+                addToCache: jest.fn(),
+            } as any,
+        );
+        const row = (await useCase.execute({} as any)).byModel[0];
+        expect(row.pricingSource).toBe('included');
+        expect(row.cost.total).toBe(0);
+        expect(row.total).toBe(1_500);
+    });
+
     it('prices a flat (non-tiered) model at the default rate', async () => {
         const useCase = makeUseCase(
             [

@@ -1,4 +1,4 @@
-export type PricingSource = "manual" | "catalog" | "none";
+export type PricingSource = "manual" | "catalog" | "included" | "none";
 
 export interface TokenRate {
     default: number;

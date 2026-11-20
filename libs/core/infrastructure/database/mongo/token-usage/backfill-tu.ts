@@ -52,11 +52,28 @@ export const BACKFILL_CUSTOM_AGENT_RUN_PREFIX = 'code-review-custom-';
 
 const gf = (f: string) => ({ $getField: { field: f, input: '$attributes' } });
 
-// Canonical model = last ':'-segment of gen_ai.response.model (mirrors deriveTu).
+// Mirror of CHATGPT_PLAN_MODEL_PREFIX in token-usage-tu.ts (asserted equal by
+// token-usage-tu.spec.ts).
+export const BACKFILL_CHATGPT_PLAN_MODEL_PREFIX = 'chatgpt:';
+
+// Canonical model = last ':'-segment of gen_ai.response.model, except ChatGPT
+// plan usage, which keeps its `chatgpt:` label (mirrors deriveTu).
+const rawModelExpr = { $ifNull: [gf('gen_ai.response.model'), ''] };
 const modelExpr = {
-    $arrayElemAt: [
-        { $split: [{ $ifNull: [gf('gen_ai.response.model'), ''] }, ':'] },
-        -1,
+    $cond: [
+        {
+            $eq: [
+                {
+                    $indexOfBytes: [
+                        rawModelExpr,
+                        BACKFILL_CHATGPT_PLAN_MODEL_PREFIX,
+                    ],
+                },
+                0,
+            ],
+        },
+        rawModelExpr,
+        { $arrayElemAt: [{ $split: [rawModelExpr, ':'] }, -1] },
     ],
 };
 

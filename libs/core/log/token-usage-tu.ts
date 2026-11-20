@@ -210,6 +210,13 @@ export function routeFromArea(area: TokenUsageArea): string {
 export const CUSTOM_AGENT_RUN_PREFIX = 'code-review-custom-';
 
 /**
+ * Model label prefix of ChatGPT plan usage (`chatgpt:<slug>`, the provider id
+ * `getModelName` puts in front). Kept whole in `tu.model` so the usage is
+ * priced as included in the plan. Mirrored in the backfill.
+ */
+export const CHATGPT_PLAN_MODEL_PREFIX = 'chatgpt:';
+
+/**
  * The routing task a custom agent's call served, read from its run name, or
  * '' for any other run. Needed because a custom agent on the managed model has
  * no routed slot, so nothing stamps `route`, and its `code-review*` run name
@@ -246,9 +253,15 @@ export function deriveTu(
     // → `gemini-2.5-pro`) while PRESERVING a Bedrock `:<version>` suffix's model
     // (`...haiku-...-v1:0` → `...haiku-...-v1`, not `0`), identical to the read
     // pipeline and the BYOK cost join — one shared primitive so the three agree.
+    //
+    // ChatGPT plan usage keeps its `chatgpt:` label: the same slug on the API
+    // is billed, on the plan it is not, and the pricing resolver tells them
+    // apart by this prefix alone.
     const model =
         typeof rawModel === 'string' && rawModel
-            ? canonicalModelId(rawModel)
+            ? rawModel.startsWith(CHATGPT_PLAN_MODEL_PREFIX)
+                ? rawModel
+                : canonicalModelId(rawModel)
             : '';
 
     const input = n(attrs['gen_ai.usage.input_tokens']);

@@ -36,6 +36,7 @@ const OVERVIEW_TTL_CURRENT_MS = 4 * 60 * 60 * 1000;
 const TO_API_SOURCE: Record<PricingSource, ApiPricingSource> = {
     manual: 'manual',
     catalog: 'catalog',
+    included: 'included',
     none: 'missing',
 };
 

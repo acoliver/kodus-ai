@@ -1,4 +1,5 @@
 import {
+    CHATGPT_PLAN_MODEL_PREFIX,
     CUSTOM_AGENT_RUN_PREFIX,
     deriveArea,
     deriveTu,
@@ -7,6 +8,7 @@ import {
     SYSTEM_RUN_NAMES,
 } from './token-usage-tu';
 import {
+    BACKFILL_CHATGPT_PLAN_MODEL_PREFIX,
     BACKFILL_CUSTOM_AGENT_RUN_PREFIX,
     BACKFILL_ROUTING_TASKS,
     BACKFILL_SUGGESTION_RUN_NAMES,
@@ -30,6 +32,13 @@ describe('deriveTu', () => {
         'gen_ai.usage.cache_creation_input_tokens': 2792,
         'gen_ai.response.model': 'claude-sonnet-5',
     };
+
+    it('keeps the chatgpt: label of ChatGPT plan usage; other prefixes collapse', () => {
+        const tu = (model: string) =>
+            deriveTu({ ...usage, 'gen_ai.response.model': model })!.model;
+        expect(tu('chatgpt:gpt-6.1-sol')).toBe('chatgpt:gpt-6.1-sol');
+        expect(tu('openai:gpt-6.1-sol')).toBe('gpt-6.1-sol');
+    });
 
     it('returns null for spans without LLM usage', () => {
         expect(deriveTu(undefined)).toBeNull();
@@ -325,6 +334,9 @@ describe('deriveArea', () => {
         );
         expect(new Set(BACKFILL_ROUTING_TASKS)).toEqual(ROUTING_TASKS);
         expect(BACKFILL_CUSTOM_AGENT_RUN_PREFIX).toBe(CUSTOM_AGENT_RUN_PREFIX);
+        expect(BACKFILL_CHATGPT_PLAN_MODEL_PREFIX).toBe(
+            CHATGPT_PLAN_MODEL_PREFIX,
+        );
     });
 
     it('ROUTING_TASKS matches the real LlmTask enum', () => {

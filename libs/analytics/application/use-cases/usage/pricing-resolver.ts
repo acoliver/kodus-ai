@@ -7,10 +7,13 @@ import {
 } from '@libs/analytics/domain/token-usage/types/pricing.types';
 
 import { ModelPricingInfo, TokenPricingUseCase } from './token-pricing.use-case';
+import { CHATGPT_PLAN_MODEL_PREFIX } from '@libs/core/log/token-usage-tu';
 
 /**
  * Resolves the current price for a model with a fixed precedence:
  *
+ *   0. ChatGPT plan usage (`chatgpt:<slug>`) — included in the user's plan,
+ *      so zero; tokens stay visible
  *   1. manual override (org-entered on the BYOK config) — flat, no tiers
  *   2. LiteLLM catalog (current rates, may be tiered)
  *   3. unpriceable — `source: 'none'`, `priced: false`
@@ -29,6 +32,19 @@ export class PricingResolver {
         overrides?: ManualPricingOverrides,
     ): Promise<ResolvedModelPricing> {
         const key = model?.trim() ?? '';
+        if (key.startsWith(CHATGPT_PLAN_MODEL_PREFIX)) {
+            return {
+                model: key,
+                source: 'included',
+                priced: true,
+                rates: {
+                    input: { default: 0 },
+                    output: { default: 0 },
+                    cacheRead: { default: 0 },
+                    cacheWrite: { default: 0 },
+                },
+            };
+        }
         const manual = overrides?.[key];
         if (manual) {
             return {

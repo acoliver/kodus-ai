@@ -106,7 +106,7 @@ export interface CostBreakdown {
  * and no catalog entry). The UI surfaces a warning and excludes the row from
  * cost totals.
  */
-export type PricingSource = 'manual' | 'catalog' | 'missing';
+export type PricingSource = 'manual' | 'catalog' | 'included' | 'missing';
 
 /** Per-model row enriched server-side with cost + pricing source. */
 export interface EnrichedModelUsage extends BaseUsageContract {

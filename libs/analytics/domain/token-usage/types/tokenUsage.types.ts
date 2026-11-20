@@ -144,7 +144,7 @@ export interface CostBreakdown {
  * the resolver. Keeping a single enum at the wire boundary makes the
  * frontend's missing-price warning trivial.
  */
-export type ApiPricingSource = 'manual' | 'catalog' | 'missing';
+export type ApiPricingSource = 'manual' | 'catalog' | 'included' | 'missing';
 
 /**
  * A per-model usage row enriched with the cost we computed for it, the cost
