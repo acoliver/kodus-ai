@@ -167,6 +167,33 @@ Moonshot and Z.ai each offer a subscription plan on a **different endpoint** tha
   </Tab>
 </Tabs>
 
+## ChatGPT plan (self-hosted)
+
+A self-hosted Kodus can run reviews on an organization owner's ChatGPT plan through OpenAI's **Sign in with ChatGPT** preview. It is not available on Kodus Cloud and is not offered in the connect form: you connect it from the [Kodus CLI](https://github.com/kodustech/kodus-ai/tree/main/apps/cli).
+
+1. Log in to the CLI as an organization owner against your deployment: `KODUS_API_URL=https://<your-kodus-api> kodus auth login`.
+2. Run `kodus chatgpt login`. Your browser opens ChatGPT; sign in, name the agent and consent to plan usage. The CLI uploads the sign-in to your Kodus server, which verifies it, stores the session encrypted, and adds a **ChatGPT plan** credential and model to your BYOK configuration. A connection test runs right after.
+3. Route a task to the ChatGPT model (or pass `--set-default`), as with any other model.
+
+| Command | What it does |
+| --- | --- |
+| `kodus chatgpt status` | Account, plan permission and token expiry |
+| `kodus chatgpt models` | Models your ChatGPT account offers |
+| `kodus chatgpt use <slug>` | Change the model and test it |
+| `kodus chatgpt login --enable-plan` | Grant plan usage after declining it |
+| `kodus chatgpt logout` | Revoke the session; the registration is kept for the next sign-in |
+
+<Warning>
+  Every review in the organization consumes the signed-in account's ChatGPT plan limits, including reviews of pull requests by other people. Check that this matches OpenAI's terms for your plan and your organization's policy. Manage usage at [chatgpt.com/settings/usage](https://chatgpt.com/settings/usage).
+</Warning>
+
+How it behaves:
+
+- Requests go only to `https://api.openai.com/v1/responses`, with `store: false`. Temperature and output-length caps are not sent: the preview does not accept them.
+- When the plan's usage limit is reached, reviews stop with a quota error that links to the usage page; if a fallback model is configured, routing moves to it.
+- Token usage is recorded under `chatgpt:<model>` and priced at $0.00 (included in the plan).
+- Removing the ChatGPT model's credential from the BYOK configuration also revokes and deletes its session.
+
 ## Supported Providers
 
 <Tabs>
