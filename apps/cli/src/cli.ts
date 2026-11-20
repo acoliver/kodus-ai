@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { createRequire } from 'node:module';
 import { authCommand } from './commands/auth/index.js';
+import { chatgptCommand } from './commands/chatgpt/index.js';
 import { configCommand } from './commands/config.js';
 import { diffCommand } from './commands/diff.js';
 import { hookCommand } from './commands/hook/index.js';
@@ -44,6 +45,7 @@ program
 program.addCommand(reviewCommand);
 program.addCommand(diffCommand);
 program.addCommand(authCommand);
+program.addCommand(chatgptCommand);
 program.addCommand(subscribeCommand);
 program.addCommand(updateCommand);
 program.addCommand(prCommand);

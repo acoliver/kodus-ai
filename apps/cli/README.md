@@ -716,6 +716,27 @@ kodus review --format json --fail-on error
 
 </details>
 
+### ChatGPT plan (self-hosted Kodus)
+
+A self-hosted Kodus can run reviews on an organization owner's ChatGPT plan ("Sign in with ChatGPT", an OpenAI preview). The sign-in runs in your browser on your machine; the Kodus server keeps the session and refreshes it. Requires `kodus auth login` as an organization owner (team keys cannot manage BYOK), and `KODUS_API_URL` pointing at your deployment. Not available on Kodus Cloud.
+
+```bash
+kodus chatgpt login                    # Sign in, connect the plan, run a connection test
+kodus chatgpt login --model <slug>     # Pick the model (default: the first one your account lists)
+kodus chatgpt login --set-default      # Route reviews to the ChatGPT model by default
+kodus chatgpt login --no-browser       # Print a one-time local URL instead of opening a browser
+kodus chatgpt login --enable-plan      # Ask again for plan consent on the existing registration
+kodus chatgpt login --new-account --replace   # Switch the organization to another ChatGPT account
+kodus chatgpt login -o siwc.json       # Write the credentials (mode 0600) instead of uploading
+kodus chatgpt import siwc.json         # An owner uploads a file written with -o
+kodus chatgpt status                   # Account, plan permission, expiry
+kodus chatgpt models                   # Models your account offers (slug, name)
+kodus chatgpt use <slug> [--set-default]   # Change the model and test it
+kodus chatgpt logout                   # Revoke the session; the registration is kept
+```
+
+Reviews in the organization consume the signed-in account's ChatGPT plan limits. Manage usage at [chatgpt.com/settings/usage](https://chatgpt.com/settings/usage). The browser callback goes to `127.0.0.1` on the machine running the CLI, so sign in there, not on the server.
+
 ## Privacy & Security
 
 Kodus sends your code diffs to the Kodus API for analysis. We take this seriously:
