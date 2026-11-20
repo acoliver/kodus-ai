@@ -26,6 +26,7 @@ export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 
 const LOGIN_TIMEOUT_MS = 10 * 60_000;
 const EXCHANGE_TIMEOUT_MS = 30_000;
+const CALLBACK_DRAIN_MS = 1_000;
 const MAX_TOKEN_BODY = 1 << 20;
 
 const KNOWN_OAUTH_CODES = new Set([
@@ -270,6 +271,13 @@ export async function exchangeCode(
     return assertSignInResponse(parsed);
 }
 
+/** The loopback listener: one request per connection. */
+export function createCallbackServer(): http.Server {
+    const server = http.createServer();
+    server.keepAliveTimeout = 0;
+    return server;
+}
+
 function plain(res: http.ServerResponse, status: number, text: string): void {
     res.writeHead(status, {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -295,9 +303,9 @@ export async function loginAttempt(
         onIssued: (clientId: string) => void;
     },
     deps: ChatGptLoginDeps,
+    createServer: () => http.Server,
 ): Promise<ChatGptLoginResult> {
-    const server = http.createServer();
-    server.keepAliveTimeout = 0;
+    const server = createServer();
     await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
         server.listen(0, '127.0.0.1', () => resolve());
@@ -443,9 +451,25 @@ export async function loginAttempt(
             tokenResponse,
         };
     } finally {
-        server.closeAllConnections();
-        await new Promise<void>((resolve) => server.close(() => resolve()));
+        await closeCallbackServer(server);
     }
+}
+
+/**
+ * Stop accepting and let an in-flight callback response reach the browser;
+ * only connections still open after the drain deadline are cut. `close()`
+ * also closes idle connections.
+ */
+async function closeCallbackServer(server: http.Server): Promise<void> {
+    const closed = new Promise<void>((resolve) =>
+        server.close(() => resolve()),
+    );
+    const deadline = setTimeout(
+        () => server.closeAllConnections(),
+        CALLBACK_DRAIN_MS,
+    );
+    await closed;
+    clearTimeout(deadline);
 }
 
 /**
@@ -482,6 +506,7 @@ export async function runChatGptLogin(
                     onIssued: (id) => (issued = id),
                 },
                 deps,
+                createCallbackServer,
             );
         } catch (err) {
             if (
